@@ -1,0 +1,100 @@
+---
+
+#
+# This is an idea of how to install it as a systemd service
+#  enable services after eg.:
+#  systemctl enable --now kraken@bitfinex.service
+#
+
+
+- hosts: all
+  become: yes
+  vars:
+    postgresql_global_config_options:
+      - option: listen_addresses
+        value: "127.0.0.1,::"
+    postgresql_hba_entries:
+      - { type: local, database: all, user: postgres, auth_method: trust }
+      - { type: local, database: all, user: all, auth_method: peer }
+      - { type: host, database: all, user: all, address: '127.0.0.1/32', auth_method: md5 }
+      - { type: host, database: all, user: all, address: '::1/128', auth_method: md5 }
+  tasks:
+    - name: open up ssh on public zone
+      firewalld:
+        service: ssh
+        permanent: yes
+        state: enabled
+        immediate: yes
+    - name: create the kraken
+      user:
+        name: kraken
+        comment: migthy KRAKEN
+    - name: clone repository
+      git:
+        repo: "https://github.com/planet-winter/ccxt-kraken.git"
+        dest: /home/kraken/ccxt-kraken
+        update: yes
+        force: yes
+      #become: yes
+      become_user: kraken
+    - name: install virtualenv
+      package:
+        name:
+          - python3-virtualenv
+          - "@development"
+    - name: install virtualenv
+      pip:
+        requirements: /home/kraken/ccxt-kraken/requirements.txt
+        virtualenv: /home/kraken/ccxt-kraken/virtualenv
+    - name: place systemd unit
+      copy:
+        content: |
+          [Unit]
+          Description=Fetch all symbols minute data from exchange %I
+          Requires=network.target
+          Requires=postgresql.service
+          [Service]
+          WorkingDirectory=/home/kraken/ccxt-kraken/
+          User=kraken
+          Type=forking
+          ExecStart=/bin/bash fetch_exchange.sh %i
+          #KillMode=process
+          Restart=always
+          RestartSec=600
+          User=kraken
+          TimeoutStartSec=0
+          StandardOutput=syslog
+          StandardError=syslog
+          [Install]
+          WantedBy=multi-user.target
+
+        dest: /etc/systemd/system/kraken@.service
+      register: kraken_service_file
+    - name: systemctl daemon-reload
+      shell: systemctl daemon-reload
+      when: kraken_service_file.changed
+  roles:
+    - postgresql
+  post_tasks:
+    - name: create database
+      postgresql_db:
+        name: kraken
+    - name: create db user kraken
+      postgresql_user:
+        name: kraken
+        password: ReleaseTheKraken
+        db: kraken
+        priv: ALL
+    - name: create db user kraken-readonly
+      postgresql_user:
+        name: kraken-readonly
+        password: readcandles
+        db: kraken
+        priv: CONNECT
+    - name: create db readonly user
+      postgresql_privs:
+        database: kraken
+        roles: kraken-readonly
+        objs: ALL_IN_SCHEMA
+        privs: INSERT,UPDATE
+        grant_option: no
