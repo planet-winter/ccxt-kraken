@@ -1,0 +1,17 @@
+[Unit]
+Description=Fetch all symbols minute data from exchange %I
+
+[Service]
+WorkingDirectory=/home/kraken/ccxt-ohlcv-fetcher/
+Type=forking
+ExecStart=/bin/bash fetch_exchange.sh %i
+KillMode=process
+Restart=on-failure
+RestartSec=5
+User=kraken
+TimeoutStartSec=0
+StandardOutput=syslog
+StandardError=syslog
+
+[Install]
+WantedBy=multi-user.target
