@@ -4,6 +4,8 @@ fetches historical OHLCV values from most crypto exchanges using ccxt library.
 saves candles to a database (postgres/Mysql/Mariadb).
 by default resumes from last candle fetched.
 
+there is a similar script at https://github.com/planet-winter/ccxt-ohlcv-fetcher witch saves the candles in seperate sqlite files per pair.
+
 
 ## setup
 
